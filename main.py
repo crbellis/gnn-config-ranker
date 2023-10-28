@@ -80,7 +80,7 @@ def main():
         elif early_stop > 0 and i - best_val_at_epoch >= early_stop:
             print('[@%i] Best accuracy was attained at epoch %i. Stopping.' % (i, best_val_at_epoch))
         break
-    print(model.predict(graph_batch))
+    # print(model.predict([graph_batch]))
     # Restore best parameters.
     print('Restoring parameters corresponding to the best validation OPA.')
     assert best_params is not None
