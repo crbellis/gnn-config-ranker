@@ -1,0 +1,40 @@
+%\pdfminorversion=4  
+\documentclass[letterpaper,twocolumn,10pt]{article}
+\usepackage{usenix2019_v3}
+
+\usepackage{xcolor}
+
+\usepackage{amsmath}
+
+%\pagenumbering{gobble}
+
+
+\begin{document}
+
+%don't want date printed
+\date{}
+
+% make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+\title{\Large \bf Title } 
+
+\author{{Author 1}
+\and
+{Author 2}
+}
+
+\maketitle
+
+\input{sections/abstract.tex}
+\input{sections/intro.tex}
+\input{sections/motivation.tex}
+\input{sections/related}
+\input{sections/design}
+\input{sections/experiments.tex}
+\input{sections/discussion.tex}
+\input{sections/conclusion.tex}
+
+\bibliographystyle{plain}
+\bibliography{project}
+
+\end{document}
+https://www.overleaf.com/project/6042c6426fb0ac26e90ab1b9
