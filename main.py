@@ -64,6 +64,7 @@ def main():
     epochs = 10  # Total number of training epochs.
 
     for i in range(epochs):
+        print("epoch: ", i + 1)
         history = model.fit(
             layout_train_ds, epochs=1, verbose=1, validation_data=layout_valid_ds,
             validation_freq=1)
@@ -76,16 +77,21 @@ def main():
             best_val_opa = val_opa
             best_val_at_epoch = i
             best_params = {v.ref: v + 0 for v in model.trainable_variables}
-            print(' * [@%i] Validation (NEW BEST): %s' % (i, str(val_opa)))
+            print(' * [@%i] Validation (NEW BEST): %s' % (i+1, str(val_opa)))
         elif early_stop > 0 and i - best_val_at_epoch >= early_stop:
-            print('[@%i] Best accuracy was attained at epoch %i. Stopping.' % (i, best_val_at_epoch))
-        break
-    # print(model.predict([graph_batch]))
+            print('[@%i] Best accuracy was attained at epoch %i. Stopping.' % (i+1, best_val_at_epoch))
+            break
     # Restore best parameters.
     print('Restoring parameters corresponding to the best validation OPA.')
     assert best_params is not None
     for v in model.trainable_variables:
         v.assign(best_params[v.ref])
+
+    # test model output on validation sample
+    data = layout_valid_ds.take(1)
+    for _, y in data:
+        print(tf.argsort(y).numpy())
+    print(tf.argsort(model.predict(data)).numpy())
 
 
 def get_layout_npz_dataset() -> Tuple[
