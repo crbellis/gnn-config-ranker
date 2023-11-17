@@ -65,7 +65,6 @@ tensorflow==2.14.0
 tensorflow-estimator==2.14.0
 tensorflow-gnn==0.6.0
 tensorflow-io-gcs-filesystem==0.34.0
-tensorflow-macos==2.14.0
 tensorflow-ranking==0.5.3
 tensorflow-serving-api==2.14.0
 termcolor==2.3.0
