@@ -1,6 +1,10 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from main import get_layout_npz_dataset
+import tensorflow as tf
+
+
 plt.style.use("ggplot")
 
 def main():
@@ -26,7 +30,13 @@ def main():
     plt.show()
 
 
+def single():
+    home_dir = os.path.expanduser("~")
+    (layout_train_ds, layout_valid_ds), layout_npz_dataset = get_layout_npz_dataset()
+
+    graph_batch, config_runtimes = next(iter(layout_train_ds.take(1)))
+    print(config_runtimes)
 
 
 if __name__ == "__main__":
-    main()
+    single()

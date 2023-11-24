@@ -20,31 +20,28 @@ SEARCH = 'random'  # Can be "random" or "default"
 
 # Batch size information.
 BATCH_SIZE = 16  # Number of graphs per batch.
-CONFIGS_PER_GRAPH = 5  # Number of configurations (features and target values) per graph.
-MAX_TRAIN_CONFIGS = 100
-MAX_KEEP_NODES = 500  # Useful for dropout.
+CONFIGS_PER_GRAPH = 3  # Number of configurations (features and target values) per graph.
+MIN_TRAIN_CONFIGS = 2
+MAX_TRAIN_CONFIGS = 50
+MAX_KEEP_NODES = 5000  # Useful for dropout.
 # `MAX_KEEP_NODES` is (or, is not) useful for Segment Dropout, if model uses
 # edges "sampled_config" and "sampled_feed" (or, "config" and "feed")
 
 def main():
     home_dir = os.path.expanduser("~")
-    d = dict(np.load(
-        os.path.join(home_dir,
-        "data/tpugraphs/npz/layout/xla/default/train/alexnet_train_batch_32.npz"
-    )))
-    print(d.keys())
 
     (layout_train_ds, layout_valid_ds), layout_npz_dataset = get_layout_npz_dataset()
     print("loaded")
     # (tile_train_ds, tile_valid_ds) = get_tile_npz_dataset()
 
-    graph_batch, config_runtimes = next(iter(layout_train_ds.take(1)))
+    graph_batch, config_runtimes = next(iter(layout_train_ds.take(2)))
     
-    print('graph_batch = ')
-    print(graph_batch)
-    print('\n\n')
+    # print('graph_batch = ')
+    # print(graph_batch)
+    # print('\n\n')
     print('config_runtimes=')
     print(config_runtimes)
+    print(layout_train_ds.cardinality().numpy() * BATCH_SIZE * CONFIGS_PER_GRAPH)
 
     model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, hidden_dim=64)
 
@@ -126,7 +123,7 @@ def get_layout_npz_dataset() -> Tuple[
 
     layout_npz_dataset = layout_data.get_npz_dataset(
         layout_data_root_dir,
-        min_train_configs=CONFIGS_PER_GRAPH,
+        min_train_configs=MIN_TRAIN_CONFIGS,
         max_train_configs=MAX_TRAIN_CONFIGS,  # If any graph has more than this configurations, it will be filtered [speeds up loading + training]
         cache_dir='cache'
     )
@@ -156,7 +153,7 @@ def get_tile_npz_dataset() -> Tuple[
 
     tile_npz_dataset = tile_data.get_npz_dataset(
         tile_data_root_dir,
-        min_train_configs=CONFIGS_PER_GRAPH,
+        min_train_configs=MIN_TRAIN_CONFIGS,
         cache_dir='cache'
     )
 
