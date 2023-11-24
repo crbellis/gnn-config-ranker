@@ -12,14 +12,16 @@ from model import _OpEmbedding, ResModel
 import functools
 import json
 
-LAYOUT_DATA_ROOT = '~/data/tpugraphs/npz/layout'
-TILE_DATA_ROOT = "~/data/tpugraphs/npz/tile"
+home_dir = os.path.expanduser("~")
+LAYOUT_DATA_ROOT = os.path.join(home_dir, 'data/tpugraphs/npz/layout')
+TILE_DATA_ROOT = os.path.join(home_dir, "data/tpugraphs/npz/tile")
 SOURCE = 'xla'  # Can be "xla" or "nlp"
 SEARCH = 'random'  # Can be "random" or "default"
 
 # Batch size information.
-BATCH_SIZE = 4  # Number of graphs per batch.
+BATCH_SIZE = 16  # Number of graphs per batch.
 CONFIGS_PER_GRAPH = 5  # Number of configurations (features and target values) per graph.
+MAX_TRAIN_CONFIGS = 100
 MAX_KEEP_NODES = 500  # Useful for dropout.
 # `MAX_KEEP_NODES` is (or, is not) useful for Segment Dropout, if model uses
 # edges "sampled_config" and "sampled_feed" (or, "config" and "feed")
@@ -53,11 +55,11 @@ def main():
         tfr.keras.metrics.OPAMetric(name='opa_metric'),
     ])
 
-    early_stop = 20  # If validation OPA did not increase in this many epochs, terminate training.
+    early_stop = 100  # If validation OPA did not increase in this many epochs, terminate training.
     best_params = None  # Stores parameters corresponding to best validation OPA, to restore to them after training.
     best_val_opa = -1  # Tracks best validation OPA
     best_val_at_epoch = -1  # At which epoch.
-    epochs = 2 # Total number of training epochs.
+    epochs = 1000 # Total number of training epochs.
     val_losses = []
     train_losses = []
     train_opas = []
@@ -125,7 +127,7 @@ def get_layout_npz_dataset() -> Tuple[
     layout_npz_dataset = layout_data.get_npz_dataset(
         layout_data_root_dir,
         min_train_configs=CONFIGS_PER_GRAPH,
-        max_train_configs=100,  # If any graph has more than this configurations, it will be filtered [speeds up loading + training]
+        max_train_configs=MAX_TRAIN_CONFIGS,  # If any graph has more than this configurations, it will be filtered [speeds up loading + training]
         cache_dir='cache'
     )
 
