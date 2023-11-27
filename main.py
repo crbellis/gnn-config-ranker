@@ -20,10 +20,10 @@ SEARCH = 'random'  # Can be "random" or "default"
 
 # Batch size information.
 BATCH_SIZE = 16  # Number of graphs per batch.
-CONFIGS_PER_GRAPH = 3  # Number of configurations (features and target values) per graph.
-MIN_TRAIN_CONFIGS = 2
-MAX_TRAIN_CONFIGS = 50
-MAX_KEEP_NODES = 5000  # Useful for dropout.
+CONFIGS_PER_GRAPH = 2  # Number of configurations (features and target values) per graph.
+MIN_TRAIN_CONFIGS = -1
+MAX_TRAIN_CONFIGS = 1000
+MAX_KEEP_NODES = 1000  # Useful for dropout.
 # `MAX_KEEP_NODES` is (or, is not) useful for Segment Dropout, if model uses
 # edges "sampled_config" and "sampled_feed" (or, "config" and "feed")
 
@@ -43,7 +43,8 @@ def main():
     print(config_runtimes)
     print(layout_train_ds.cardinality().numpy() * BATCH_SIZE * CONFIGS_PER_GRAPH)
 
-    model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, hidden_dim=64)
+    # model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, op_embed_dim=16, hidden_dim=128)
+    model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, op_embed_dim=128, hidden_dim=256)
 
     loss = tfr.keras.losses.ListMLELoss()  # (temperature=10)
     opt = tf.keras.optimizers.Adam(learning_rate=1e-3, clipnorm=0.5)
