@@ -40,12 +40,27 @@ def single():
 
 def view_tile_train_run():
     import gzip, json
-    with gzip.open("tile/run_.jsonz", 'rb') as f:
+    with gzip.open("tile/final/run_.jsonz", 'rb') as f:
         json_bytes = f.read()
 
     json_str = json_bytes.decode('utf-8')
     data = json.loads(json_str)
-    print(data)
+
+    plt.plot(data["train_curve"]["epoch"], data["train_curve"]["train_opa"], label="Training OPA")
+    plt.plot(data["train_curve"]["epoch"], data["train_curve"]["val_opa"], label="Validation OPA")
+    plt.legend()
+    plt.title("Tile Training OPA")
+    plt.ylabel("OPA")
+    plt.xlabel("Epoch")
+    plt.show()
+
+    plt.plot(data["train_curve"]["epoch"], data["train_curve"]["train_loss"], label="Training Loss")
+    plt.plot(data["train_curve"]["epoch"], data["train_curve"]["val_loss"], label="Validation Loss")
+    plt.legend()
+    plt.title("Tile Training Loss")
+    plt.ylabel("Loss")
+    plt.xlabel("Epoch")
+    plt.show()
 
 
 if __name__ == "__main__":
