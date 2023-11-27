@@ -38,5 +38,15 @@ def single():
     print(config_runtimes)
 
 
+def view_tile_train_run():
+    import gzip, json
+    with gzip.open("tile/run_.jsonz", 'rb') as f:
+        json_bytes = f.read()
+
+    json_str = json_bytes.decode('utf-8')
+    data = json.loads(json_str)
+    print(data)
+
+
 if __name__ == "__main__":
-    single()
+    view_tile_train_run()

@@ -15,7 +15,7 @@ import abc
 
 import tensorflow as tf
 import tensorflow_gnn as tfgnn
-from utils.implicit import implicit
+import utils.implicit as implicit
 
 
 class _ConfigFeatureJoiner(abc.ABC):
