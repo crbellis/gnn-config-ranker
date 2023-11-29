@@ -1,5 +1,7 @@
 import os
+import collections
 from typing import Tuple
+import tqdm
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -20,8 +22,8 @@ SEARCH = 'random'  # Can be "random" or "default"
 
 # Batch size information.
 BATCH_SIZE = 16  # Number of graphs per batch.
-CONFIGS_PER_GRAPH = 2  # Number of configurations (features and target values) per graph.
-MIN_TRAIN_CONFIGS = -1
+CONFIGS_PER_GRAPH = 5  # Number of configurations (features and target values) per graph.
+MIN_TRAIN_CONFIGS = 5
 MAX_TRAIN_CONFIGS = 1000
 MAX_KEEP_NODES = 1000  # Useful for dropout.
 # `MAX_KEEP_NODES` is (or, is not) useful for Segment Dropout, if model uses
@@ -44,20 +46,20 @@ def main():
     print(layout_train_ds.cardinality().numpy() * BATCH_SIZE * CONFIGS_PER_GRAPH)
 
     # model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, op_embed_dim=16, hidden_dim=128)
-    model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, op_embed_dim=128, hidden_dim=256)
+    model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, op_embed_dim=16, hidden_dim=128)
 
     loss = tfr.keras.losses.ListMLELoss()  # (temperature=10)
-    opt = tf.keras.optimizers.Adam(learning_rate=1e-3, clipnorm=0.5)
+    opt = tf.keras.optimizers.legacy.Adam(learning_rate=1e-3, clipnorm=0.5)
 
     model.compile(loss=loss, optimizer=opt, metrics=[
         tfr.keras.metrics.OPAMetric(name='opa_metric'),
     ])
 
-    early_stop = 100  # If validation OPA did not increase in this many epochs, terminate training.
+    early_stop = 20 # If validation OPA did not increase in this many epochs, terminate training.
     best_params = None  # Stores parameters corresponding to best validation OPA, to restore to them after training.
     best_val_opa = -1  # Tracks best validation OPA
     best_val_at_epoch = -1  # At which epoch.
-    epochs = 1000 # Total number of training epochs.
+    epochs = 50 # Total number of training epochs.
     val_losses = []
     train_losses = []
     train_opas = []
@@ -106,7 +108,7 @@ def main():
     for v in model.trainable_variables:
         v.assign(best_params[v.ref])
 
-    model.save_weights(f"model_{epochs}.h5")
+    model.save(f"layout_model_baseline_{epochs}")
 
     # model.load_weights("./model_1.h5")
 
@@ -199,8 +201,14 @@ def pair_tile_graph_with_label(graph: tfgnn.GraphTensor, batch_size=10, num_conf
 
 # Used for validation. For training, data.py accepts `min_train_configs`.
 def _graph_has_enough_configs(graph: tfgnn.GraphTensor, num_configs=2):
-  """To used to filter validation dataset."""
-  return graph.node_sets['config'].sizes[0] >= num_configs
+    """To used to filter validation dataset."""
+    return graph.node_sets['config'].sizes[0] >= num_configs
+
+def eval():
+    data_root_dir = os.path.join(
+        os.path.expanduser("~"), SOURCE, SEARCH)
+
+    (_, val_ds), ds = get_layout_npz_dataset()
 
 
 if __name__ == "__main__":

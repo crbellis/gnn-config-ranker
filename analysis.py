@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 from main import get_layout_npz_dataset
@@ -39,7 +40,7 @@ def single():
 
 
 def view_tile_train_run():
-    import gzip, json
+    import gzip
     with gzip.open("tile/final/run_.jsonz", 'rb') as f:
         json_bytes = f.read()
 
@@ -63,5 +64,19 @@ def view_tile_train_run():
     plt.show()
 
 
+def get_tile_avg_global():
+    # data = json.load(open("tile/errors_val_baseline_full.json"))
+    data = json.load(open("layout/errors_val_baseline_full.json"))
+    sum_values = 0
+    length = 0
+    for v in data["1"]:
+        sum_values += sum(data["1"][v])
+        length += len(data["1"][v])
+    
+    print(sum_values / length)
+    # 0.09586657355224038
+    # baseline on filtered ds: 0.13485408708165272
+
+
 if __name__ == "__main__":
-    view_tile_train_run()
+    get_tile_avg_global()

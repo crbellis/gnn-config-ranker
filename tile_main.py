@@ -9,13 +9,13 @@ import tensorflow as tf
 import tensorflow_gnn as tfgnn
 from utils import tile_data as data
 import tensorflow_ranking as tfr
-from model import _SAGE, _EarlyJoin, _LateJoin, _ResGCN, EarlyJoinSAGE
+from model import EarlyJoinSAGE
 from utils import metrics
 import tqdm
 
 
 home_dir = os.path.expanduser("~")
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 CONFIGS_PER_GRAPH = 5
 MIN_TRAIN_CONFIGS = 5
 EPOCHS = 100
@@ -35,7 +35,7 @@ def _graph_has_enough_configs(graph: tfgnn.GraphTensor, num_configs=2):
     return graph.node_sets['config'].sizes[0] >= num_configs
 
 
-def save_run_file(run_info: dict[str, Any], out_dir: str):
+def save_run_file(run_info: dict[str, Any], out_dir: str,):
   # Save run file.
     out_run_file = os.path.join(out_dir, f'run_.jsonz')
     bytes_io = io.BytesIO()
@@ -47,13 +47,14 @@ def save_run_file(run_info: dict[str, Any], out_dir: str):
 
 def save_model(
     model: tf.keras.Model, run_info: dict[str, Any], out_dir: str,
+    model_name: str = 'model_'
 ):
     """Writes `model` and `run_info` onto `out_dir`/*`args.compute_hash()`*."""
     # Save run file.
     save_run_file(run_info, out_dir)
 
     # Keras model.
-    out_model_file = os.path.join(out_dir, f'model_')
+    out_model_file = os.path.join(out_dir, model_name)
     model.save(out_model_file)
 
 
@@ -79,7 +80,7 @@ def train():
         .map(tfgnn.GraphTensor.merge_batch_to_components))
 
     # Model.
-    model = EarlyJoinSAGE(CONFIGS_PER_GRAPH, dataset_partitions.num_ops, hidden_dim=128, op_embed_dim=256)
+    model = EarlyJoinSAGE(CONFIGS_PER_GRAPH, dataset_partitions.num_ops)
 
     # ListMLELoss:1 or MSE:0.02
     loss = metrics.CombinedLoss(metrics.parse_loss_str('ListMLELoss:0.02'))
@@ -125,7 +126,7 @@ def train():
             best_params = {v.ref: v + 0 for v in model.trainable_variables}
             print(' * [@%i] Validation (NEW BEST): %s', i, str(val_opa))
             # Write model and train metrics (in `run_info`).
-            save_model(model, run_info, "./tile/")
+            save_model(model, run_info, "./tile/", model_name="model_baseline")
             # elif args.early_stop > 0 and i - best_val_at_epoch >= args.early_stop:
             #   print('[@%i] Best accuracy was attained at epoch %i. Stopping.',
             #                i, best_val_at_epoch)
@@ -149,7 +150,7 @@ def eval():
         # Model was compiled with a loss before it was saved.
         # Override `load_model` in this scope to reconstruct loss object.
         {'CombinedLoss': metrics.CombinedLoss}):
-        keras_model = tf.keras.models.load_model("./tile/model_")
+        keras_model = tf.keras.models.load_model("./tile/model_baseline")
 
     tile_root_dir = os.path.join(os.path.expanduser(TILE_DATA_ROOT), SOURCE)
     # Input training data.
@@ -159,10 +160,10 @@ def eval():
  
     ds = dataset_partitions.validation.get_graph_tensors_dataset(CONFIGS_PER_GRAPH)
 
-    model = EarlyJoinSAGE(CONFIGS_PER_GRAPH, dataset_partitions.num_ops, hidden_dim=128, op_embed_dim=128)
+    model = EarlyJoinSAGE(CONFIGS_PER_GRAPH, dataset_partitions.num_ops)
     sample_graph, = ds.take(1)  # Example graph to invoke `model.forward`.
     num_configs = int(sample_graph.node_sets['config'].sizes[0])
-    model.forward(sample_graph, num_configs)
+    out = model.forward(sample_graph, num_configs)
     del sample_graph 
 
     target_vars = model.trainable_variables
@@ -184,13 +185,14 @@ def eval():
         benchmark = (graph.node_sets['g']['tile_id']
                     .numpy()[0].decode().rsplit('_', 1)[0])
 
-        for k in [1, 5]:
+        for k in [1]:
             time_model_candidates = tf.gather(runtimes, sorted_indices[:k])
             best_of_candidates = tf.reduce_min(time_model_candidates)
             error = float((best_of_candidates - time_best) / time_best)
             errors_by_benchmark[k][benchmark].append(error)
 
     print(errors_by_benchmark)
+    json.dump(errors_by_benchmark, open("./tile/errors_val_baseline_full.json", "w"))
 
 
 def rank_config_indices(
@@ -248,4 +250,4 @@ def write_least_runtimes_csv(
 
 
 if __name__ == "__main__":
-    train()
+    eval()
