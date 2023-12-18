@@ -1,5 +1,7 @@
 import os
+import collections
 from typing import Tuple
+import tqdm
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -10,82 +12,111 @@ import utils.implicit as implicit
 import utils.tile_data as tile_data
 from model import _OpEmbedding, ResModel
 import functools
+import json
 
-LAYOUT_DATA_ROOT = '~/data/tpugraphs/npz/layout'
-TILE_DATA_ROOT = "~/data/tpugraphs/npz/tile"
+home_dir = os.path.expanduser("~")
+LAYOUT_DATA_ROOT = os.path.join(home_dir, 'data/tpugraphs/npz/layout')
+TILE_DATA_ROOT = os.path.join(home_dir, "data/tpugraphs/npz/tile")
 SOURCE = 'xla'  # Can be "xla" or "nlp"
 SEARCH = 'random'  # Can be "random" or "default"
 
 # Batch size information.
 BATCH_SIZE = 16  # Number of graphs per batch.
 CONFIGS_PER_GRAPH = 5  # Number of configurations (features and target values) per graph.
+MIN_TRAIN_CONFIGS = 5
+MAX_TRAIN_CONFIGS = 1000
 MAX_KEEP_NODES = 1000  # Useful for dropout.
 # `MAX_KEEP_NODES` is (or, is not) useful for Segment Dropout, if model uses
 # edges "sampled_config" and "sampled_feed" (or, "config" and "feed")
 
 def main():
     home_dir = os.path.expanduser("~")
-    d = dict(np.load(
-        os.path.join(home_dir,
-        "data/tpugraphs/npz/layout/xla/default/train/alexnet_train_batch_32.npz"
-    )))
-    print(d.keys())
 
     (layout_train_ds, layout_valid_ds), layout_npz_dataset = get_layout_npz_dataset()
-    (tile_train_ds, tile_valid_ds) = get_tile_npz_dataset()
-    
-    graph_batch, config_runtimes = next(iter(layout_train_ds.take(1)))
-    tile_graph_batch, tile_config_runtimes = next(iter(tile_train_ds.take(1)))
+    print("loaded")
+    # (tile_train_ds, tile_valid_ds) = get_tile_npz_dataset()
 
-    print('graph_batch = ')
-    print(graph_batch)
-    print('\n\n')
+    graph_batch, config_runtimes = next(iter(layout_train_ds.take(2)))
+    
+    # print('graph_batch = ')
+    # print(graph_batch)
+    # print('\n\n')
     print('config_runtimes=')
     print(config_runtimes)
-    print('tile graph_batch = ')
-    print(tile_graph_batch)
-    print('\n\n')
-    print('tile config_runtimes=')
-    print(tile_config_runtimes)
+    print(layout_train_ds.cardinality().numpy() * BATCH_SIZE * CONFIGS_PER_GRAPH)
 
-    model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops)
+    # model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, op_embed_dim=16, hidden_dim=128)
+    model = ResModel(CONFIGS_PER_GRAPH, layout_npz_dataset.num_ops, op_embed_dim=16, hidden_dim=128)
 
     loss = tfr.keras.losses.ListMLELoss()  # (temperature=10)
-    opt = tf.keras.optimizers.Adam(learning_rate=1e-3, clipnorm=0.5)
+    opt = tf.keras.optimizers.legacy.Adam(learning_rate=1e-3, clipnorm=0.5)
 
     model.compile(loss=loss, optimizer=opt, metrics=[
         tfr.keras.metrics.OPAMetric(name='opa_metric'),
     ])
 
-    early_stop = 5  # If validation OPA did not increase in this many epochs, terminate training.
+    early_stop = 20 # If validation OPA did not increase in this many epochs, terminate training.
     best_params = None  # Stores parameters corresponding to best validation OPA, to restore to them after training.
     best_val_opa = -1  # Tracks best validation OPA
     best_val_at_epoch = -1  # At which epoch.
-    epochs = 10  # Total number of training epochs.
+    epochs = 50 # Total number of training epochs.
+    val_losses = []
+    train_losses = []
+    train_opas = []
+    val_opas = []
 
-    for i in range(epochs):
-        history = model.fit(
-            layout_train_ds, epochs=1, verbose=1, validation_data=layout_valid_ds,
-            validation_freq=1)
+    try:
+        for i in range(epochs):
+            print("epoch: ", i + 1)
+            history = model.fit(
+                layout_train_ds, epochs=1, verbose=1, validation_data=layout_valid_ds,
+                validation_freq=1)
 
-        train_loss = history.history['loss'][-1]
-        train_opa = history.history['opa_metric'][-1]
-        val_loss = history.history['val_loss'][-1]
-        val_opa = history.history['val_opa_metric'][-1]
-        if val_opa > best_val_opa:
-            best_val_opa = val_opa
-            best_val_at_epoch = i
-            best_params = {v.ref: v + 0 for v in model.trainable_variables}
-            print(' * [@%i] Validation (NEW BEST): %s' % (i, str(val_opa)))
-        elif early_stop > 0 and i - best_val_at_epoch >= early_stop:
-            print('[@%i] Best accuracy was attained at epoch %i. Stopping.' % (i, best_val_at_epoch))
-        break
-    # print(model.predict([graph_batch]))
+            train_loss = history.history['loss'][-1]
+            train_opa = history.history['opa_metric'][-1]
+            val_loss = history.history['val_loss'][-1]
+            val_opa = history.history['val_opa_metric'][-1]
+            val_losses.append(val_loss)
+            train_losses.append(train_loss)
+            train_opas.append(train_opa)
+            val_opas.append(val_opa)
+            if val_opa > best_val_opa:
+                best_val_opa = val_opa
+                best_val_at_epoch = i
+                best_params = {v.ref: v + 0 for v in model.trainable_variables}
+                print(' * [@%i] Validation (NEW BEST): %s' % (i+1, str(val_opa)))
+            elif early_stop > 0 and i - best_val_at_epoch >= early_stop:
+                print('[@%i] Best accuracy was attained at epoch %i. Stopping.' % (i+1, best_val_at_epoch))
+                break
+
+    except Exception:
+        pass
+    
+    json.dump(
+        {
+            "val_loss": val_losses,
+            "train_loss": train_losses,
+            "train_opa": train_opas,
+            "val_opas": val_opas
+        },
+        open(f"metrics_{epochs}.json", "w+")
+    )
+
     # Restore best parameters.
     print('Restoring parameters corresponding to the best validation OPA.')
     assert best_params is not None
     for v in model.trainable_variables:
         v.assign(best_params[v.ref])
+
+    model.save(f"layout_model_baseline_{epochs}")
+
+    # model.load_weights("./model_1.h5")
+
+    # test model output on validation sample
+    data = layout_valid_ds.take(1)
+    for _, y in data:
+        print(tf.argsort(y).numpy())
+    print(tf.argsort(model.predict(data)).numpy())
 
 
 def get_layout_npz_dataset() -> Tuple[
@@ -95,8 +126,8 @@ def get_layout_npz_dataset() -> Tuple[
 
     layout_npz_dataset = layout_data.get_npz_dataset(
         layout_data_root_dir,
-        min_train_configs=CONFIGS_PER_GRAPH,
-        max_train_configs=500,  # If any graph has more than this configurations, it will be filtered [speeds up loading + training]
+        min_train_configs=MIN_TRAIN_CONFIGS,
+        max_train_configs=MAX_TRAIN_CONFIGS,  # If any graph has more than this configurations, it will be filtered [speeds up loading + training]
         cache_dir='cache'
     )
 
@@ -125,7 +156,7 @@ def get_tile_npz_dataset() -> Tuple[
 
     tile_npz_dataset = tile_data.get_npz_dataset(
         tile_data_root_dir,
-        min_train_configs=CONFIGS_PER_GRAPH,
+        min_train_configs=MIN_TRAIN_CONFIGS,
         cache_dir='cache'
     )
 
@@ -170,8 +201,14 @@ def pair_tile_graph_with_label(graph: tfgnn.GraphTensor, batch_size=10, num_conf
 
 # Used for validation. For training, data.py accepts `min_train_configs`.
 def _graph_has_enough_configs(graph: tfgnn.GraphTensor, num_configs=2):
-  """To used to filter validation dataset."""
-  return graph.node_sets['config'].sizes[0] >= num_configs
+    """To used to filter validation dataset."""
+    return graph.node_sets['config'].sizes[0] >= num_configs
+
+def eval():
+    data_root_dir = os.path.join(
+        os.path.expanduser("~"), SOURCE, SEARCH)
+
+    (_, val_ds), ds = get_layout_npz_dataset()
 
 
 if __name__ == "__main__":
